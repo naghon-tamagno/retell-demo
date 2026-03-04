@@ -23,6 +23,53 @@ function formatDurationMs(ms?: number | null) {
   return `${mm}:${String(ss).padStart(2, "0")}`;
 }
 
+/**
+ * iOS/Safari + algunos Android bloquean audio hasta "unlock" explícito
+ * en el mismo gesto del usuario. Esto reduce muchísimo casos de:
+ * - se ve transcripción pero no se oye / no te oye
+ */
+async function unlockAudio() {
+  try {
+    const AudioCtx =
+      (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AudioCtx) return;
+
+    const ctx = new AudioCtx();
+
+    // Reanudar explícitamente
+    if (ctx.state === "suspended") {
+      await ctx.resume().catch(() => {});
+    }
+
+    // "Beep" ultra-silencioso para habilitar output
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    gain.gain.value = 0.0001;
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.01);
+
+    // no cerramos ctx a propósito: en algunos iOS cerrar rompe el unlock
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Probe del mic: si esto falla => permisos / https / política browser
+ */
+async function probeMicOnce() {
+  if (!navigator?.mediaDevices?.getUserMedia) {
+    throw new Error("El navegador no soporta getUserMedia(audio).");
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  // liberar
+  stream.getTracks().forEach((t) => t.stop());
+}
+
 export default function VoiceDemo() {
   const clientRef = useRef<RetellWebClient | null>(null);
   const transcriptRef = useRef<HTMLDivElement | null>(null);
@@ -30,10 +77,14 @@ export default function VoiceDemo() {
   const pollTimerRef = useRef<any>(null);
   const startLockRef = useRef(false);
 
-  const [agents, setAgents] = useState<Array<{ id: string; label: string }>>([]);
+  const [agents, setAgents] = useState<Array<{ id: string; label: string }>>(
+    []
+  );
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
 
-  const [status, setStatus] = useState<"idle" | "starting" | "in_call" | "processing">("idle");
+  const [status, setStatus] = useState<
+    "idle" | "starting" | "in_call" | "processing"
+  >("idle");
   const [error, setError] = useState<string | null>(null);
   const [callId, setCallId] = useState<string | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -72,13 +123,17 @@ export default function VoiceDemo() {
     setEventsCount(data?.events_count ?? null);
 
     const durMs = data?.duration_ms ?? null;
-    setDuration(typeof durMs === "number" && durMs > 0 ? formatDurationMs(durMs) : "—");
+    setDuration(
+      typeof durMs === "number" && durMs > 0 ? formatDurationMs(durMs) : "—"
+    );
 
     const ca = data?.call_analysis ?? null;
 
     setSummary(ca?.call_summary ?? null);
     setSentiment(ca?.user_sentiment ?? null);
-    setSuccessful(typeof ca?.call_successful === "boolean" ? ca.call_successful : null);
+    setSuccessful(
+      typeof ca?.call_successful === "boolean" ? ca.call_successful : null
+    );
     setCustomFields(ca?.custom_analysis_data ?? {});
   }
 
@@ -152,7 +207,11 @@ export default function VoiceDemo() {
           (u?.is_agent ? "agent" : u?.is_user ? "user" : "system");
 
         const speaker: Segment["speaker"] =
-          speakerRaw === "agent" ? "agent" : speakerRaw === "user" ? "user" : "system";
+          speakerRaw === "agent"
+            ? "agent"
+            : speakerRaw === "user"
+            ? "user"
+            : "system";
 
         const candidate =
           u?.text ??
@@ -183,6 +242,15 @@ export default function VoiceDemo() {
             "";
         }
 
+        // IMPORTANT: evitar "[object Object]"
+        if (text && typeof text !== "string") {
+          try {
+            text = JSON.stringify(text);
+          } catch {
+            text = String(text);
+          }
+        }
+
         text = String(text ?? "").trim();
         if (!text) return;
 
@@ -203,7 +271,15 @@ export default function VoiceDemo() {
             }
           }
 
-          return [...prev, { id: `${now()}-${Math.random()}`, speaker: inferredSpeaker, text, ts: now() }];
+          return [
+            ...prev,
+            {
+              id: `${now()}-${Math.random()}`,
+              speaker: inferredSpeaker,
+              text,
+              ts: now(),
+            },
+          ];
         });
       } catch {
         // ignore
@@ -232,20 +308,56 @@ export default function VoiceDemo() {
     setStatus("starting");
 
     try {
+      // ✅ 1) Unlock audio (iOS)
+      await unlockAudio();
+
+      // ✅ 2) Probe mic (permiso real)
+      await probeMicOnce();
+
+      // ✅ 3) Crear llamada
       const resp = await fetch("/api/create-web-call", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agent_id: selectedAgentId }),
       });
 
+      if (!resp.ok) {
+        const t = await resp.text().catch(() => "");
+        throw new Error(`create-web-call failed: ${resp.status} ${t}`);
+      }
+
       const { access_token, call_id } = await resp.json();
+
+      if (!access_token) throw new Error("Missing access_token");
+      if (!call_id) throw new Error("Missing call_id");
 
       callIdRef.current = call_id;
       setCallId(call_id);
 
-      await clientRef.current?.startCall({ accessToken: access_token });
+      // ✅ 4) Start call
+      const client = clientRef.current;
+      if (!client) throw new Error("Retell client not ready");
+
+      await client.startCall({ accessToken: access_token });
     } catch (e: any) {
-      setError(e?.message ?? "Error");
+      // Errores típicos: NotAllowedError / NotFoundError / NotReadableError
+      const msg = String(e?.message ?? e ?? "Error");
+
+      // Mensaje más útil para mobile
+      if (
+        /NotAllowedError|Permission|denied|Permission denied/i.test(msg)
+      ) {
+        setError(
+          "El navegador bloqueó el micrófono. En iPhone: Ajustes → Safari → Micrófono (Permitir) y recargá la página. En Chrome: candado → Permisos → Micrófono."
+        );
+      } else if (/NotFoundError/i.test(msg)) {
+        setError(
+          "No se encontró micrófono disponible (o está ocupado). Probá desconectar BT/auriculares y reintentar."
+        );
+      } else {
+        setError(msg);
+      }
+
       setStatus("idle");
       startLockRef.current = false;
     }
@@ -304,7 +416,11 @@ export default function VoiceDemo() {
             </select>
           </div>
 
-          <button className="btn primary" onClick={handleStartOrStop} disabled={status === "starting"}>
+          <button
+            className="btn primary"
+            onClick={handleStartOrStop}
+            disabled={status === "starting"}
+          >
             {status === "in_call" ? "Finalizar" : "Iniciar voz"}
           </button>
         </div>
@@ -345,7 +461,9 @@ export default function VoiceDemo() {
 
             <div className="metric">
               <div className="k">Call Successful</div>
-              <div className="v">{successful === null ? "—" : successful ? "Sí" : "No"}</div>
+              <div className="v">
+                {successful === null ? "—" : successful ? "Sí" : "No"}
+              </div>
             </div>
 
             <div className="metric">
