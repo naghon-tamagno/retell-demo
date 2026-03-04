@@ -2,33 +2,46 @@ import { NextResponse } from "next/server";
 import { appendCallEvent } from "../../_store";
 
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => null);
-  if (!body) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  let body: any = null;
 
-  const event = body?.event;
+  try {
+    body = await req.json();
+  } catch (e) {
+    // No rompemos: Retell igual espera 200
+    console.log("RETELL WEBHOOK: invalid JSON");
+    return NextResponse.json({ ok: true }, { status: 200 });
+  }
+
+  const event = body?.event ?? "unknown_event";
 
   const callId =
     body?.call?.call_id ||
     body?.call?.callId ||
     body?.call_id ||
-    body?.callId;
+    body?.callId ||
+    null;
 
-  // 🔎 LOG COMPLETO (temporal)
-  // console.log("========== RETELL WEBHOOK ==========");
-  // console.log("EVENT:", event);
-  // console.log("CALL_ID:", callId);
-  // console.log("BODY:", JSON.stringify(body, null, 2));
-  // console.log("====================================");
+  // Log útil para debug (dejalo prendido hasta que pase el test)
+  console.log("========== RETELL WEBHOOK ==========");
+  console.log("EVENT:", event);
+  console.log("CALL_ID:", callId);
+  console.log("BODY:", JSON.stringify(body, null, 2));
+  console.log("====================================");
 
-  if (!callId) {
-    return NextResponse.json({ error: "Missing call_id" }, { status: 400 });
+  // Guardamos siempre; si no hay call_id, lo ponemos en un bucket "unknown"
+  const key = callId ?? "unknown_call";
+
+  try {
+    appendCallEvent(key, {
+      received_at: new Date().toISOString(),
+      event,
+      payload: body,
+    });
+  } catch (e) {
+    // Tampoco rompemos
+    console.log("RETELL WEBHOOK: appendCallEvent failed", e);
   }
 
-  appendCallEvent(callId, {
-    received_at: new Date().toISOString(),
-    event,
-    payload: body,
-  });
-
-  return NextResponse.json({ ok: true });
+  // CLAVE: nunca devolver 4xx a Retell
+  return NextResponse.json({ ok: true }, { status: 200 });
 }
