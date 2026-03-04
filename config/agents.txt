@@ -1,0 +1,2 @@
+# Formato: agent_id | descripción
+agent_3767802f6752e71491440b515b | Multi-State Agent (Sector Electrico)
