@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { appendCallEvent } from "../../_store";
+import { appendCallEvent } from "../_store";
 
 // Respuesta base
 function ok(extra?: any) {
