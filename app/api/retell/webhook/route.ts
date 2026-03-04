@@ -1,19 +1,33 @@
 import { NextResponse } from "next/server";
 import { appendCallEvent } from "../../_store";
 
+// Respuesta base
+function ok(extra?: any) {
+  return NextResponse.json({ ok: true, ...extra }, { status: 200 });
+}
+
+// OPTIONS (por si hay preflight)
+export async function OPTIONS() {
+  return ok({ method: "OPTIONS" });
+}
+
+// GET (por si el "Test webhook" prueba reachability con GET)
+export async function GET() {
+  return ok({ method: "GET" });
+}
+
+// POST (evento real)
 export async function POST(req: Request) {
   let body: any = null;
 
   try {
     body = await req.json();
-  } catch (e) {
-    // No rompemos: Retell igual espera 200
+  } catch {
     console.log("RETELL WEBHOOK: invalid JSON");
-    return NextResponse.json({ ok: true }, { status: 200 });
+    return ok({ note: "invalid_json" });
   }
 
   const event = body?.event ?? "unknown_event";
-
   const callId =
     body?.call?.call_id ||
     body?.call?.callId ||
@@ -21,14 +35,12 @@ export async function POST(req: Request) {
     body?.callId ||
     null;
 
-  // Log útil para debug (dejalo prendido hasta que pase el test)
   console.log("========== RETELL WEBHOOK ==========");
   console.log("EVENT:", event);
   console.log("CALL_ID:", callId);
   console.log("BODY:", JSON.stringify(body, null, 2));
   console.log("====================================");
 
-  // Guardamos siempre; si no hay call_id, lo ponemos en un bucket "unknown"
   const key = callId ?? "unknown_call";
 
   try {
@@ -38,10 +50,8 @@ export async function POST(req: Request) {
       payload: body,
     });
   } catch (e) {
-    // Tampoco rompemos
     console.log("RETELL WEBHOOK: appendCallEvent failed", e);
   }
 
-  // CLAVE: nunca devolver 4xx a Retell
-  return NextResponse.json({ ok: true }, { status: 200 });
+  return ok({ stored_as: key, event });
 }
