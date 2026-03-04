@@ -306,20 +306,15 @@ export default function VoiceDemo() {
 
         <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <span className="pill">Agente</span>
+
           <select
             value={selectedAgentId}
             onChange={(e) => setSelectedAgentId(e.target.value)}
-            className="pill"
-            style={{
-              background: "rgba(255,255,255,0.03)",
-              color: "rgba(255,255,255,0.92)",
-              outline: "none",
-              cursor: "pointer",
-            }}
-            disabled={status !== "idle"} // para no cambiar en medio de la llamada
+            className="agentSelect"
+            disabled={status !== "idle"}
           >
             {agents.map((a) => (
-              <option key={a.id} value={a.id} style={{ color: "#0b0c10" }}>
+              <option key={a.id} value={a.id}>
                 {a.label}
               </option>
             ))}
