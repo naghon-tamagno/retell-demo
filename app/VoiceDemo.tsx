@@ -1,3 +1,4 @@
+// app/VoiceDemo.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -28,12 +29,11 @@ export default function VoiceDemo() {
   const callIdRef = useRef<string | null>(null);
   const pollTimerRef = useRef<any>(null);
   const startLockRef = useRef(false);
+
   const [agents, setAgents] = useState<Array<{ id: string; label: string }>>([]);
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
 
-  const [status, setStatus] =
-    useState<"idle" | "starting" | "in_call" | "processing">("idle");
-
+  const [status, setStatus] = useState<"idle" | "starting" | "in_call" | "processing">("idle");
   const [error, setError] = useState<string | null>(null);
   const [callId, setCallId] = useState<string | null>(null);
   const [segments, setSegments] = useState<Segment[]>([]);
@@ -48,8 +48,7 @@ export default function VoiceDemo() {
 
   useEffect(() => {
     if (transcriptRef.current) {
-      transcriptRef.current.scrollTop =
-        transcriptRef.current.scrollHeight;
+      transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
     }
   }, [segments.length]);
 
@@ -73,21 +72,13 @@ export default function VoiceDemo() {
     setEventsCount(data?.events_count ?? null);
 
     const durMs = data?.duration_ms ?? null;
-    setDuration(
-      typeof durMs === "number" && durMs > 0
-        ? formatDurationMs(durMs)
-        : "—"
-    );
+    setDuration(typeof durMs === "number" && durMs > 0 ? formatDurationMs(durMs) : "—");
 
     const ca = data?.call_analysis ?? null;
 
     setSummary(ca?.call_summary ?? null);
     setSentiment(ca?.user_sentiment ?? null);
-    setSuccessful(
-      typeof ca?.call_successful === "boolean"
-        ? ca.call_successful
-        : null
-    );
+    setSuccessful(typeof ca?.call_successful === "boolean" ? ca.call_successful : null);
     setCustomFields(ca?.custom_analysis_data ?? {});
   }
 
@@ -97,9 +88,7 @@ export default function VoiceDemo() {
     const startedAt = Date.now();
     pollTimerRef.current = setInterval(async () => {
       try {
-        const r = await fetch(`/api/calls/${id}`, {
-          cache: "no-store",
-        });
+        const r = await fetch(`/api/calls/${id}`, { cache: "no-store" });
         const data = await r.json();
 
         if (data?.status === "ready") {
@@ -156,7 +145,6 @@ export default function VoiceDemo() {
 
     c.on("update", (u: any) => {
       try {
-        // 1) Infer speaker
         const speakerRaw =
           u?.speaker ??
           u?.from ??
@@ -166,7 +154,6 @@ export default function VoiceDemo() {
         const speaker: Segment["speaker"] =
           speakerRaw === "agent" ? "agent" : speakerRaw === "user" ? "user" : "system";
 
-        // 2) Candidate payload (puede ser string / obj / array)
         const candidate =
           u?.text ??
           u?.transcript ??
@@ -180,7 +167,6 @@ export default function VoiceDemo() {
         let role: any = null;
 
         if (Array.isArray(candidate)) {
-          // muchos SDKs mandan array de piezas
           const last = candidate[candidate.length - 1];
           role = last?.role ?? last?.speaker ?? null;
           text = last?.content ?? last?.text ?? last?.transcript ?? "";
@@ -200,33 +186,30 @@ export default function VoiceDemo() {
         text = String(text ?? "").trim();
         if (!text) return;
 
-        // si el rol viene explícito, lo respetamos
         const inferredSpeaker: Segment["speaker"] =
           role === "agent" ? "agent" : role === "user" ? "user" : speaker;
 
-        // 3) Coalescing: en vez de spamear palabra por palabra
         setSegments((prev) => {
           const last = prev[prev.length - 1];
 
-          // si es el mismo speaker, y parece refinamiento/partial, reemplazamos el último
           if (last && last.speaker === inferredSpeaker) {
             const newerLooksLikeUpdate =
-              text.includes(last.text) || last.text.includes(text) || text.length >= last.text.length;
+              text.includes(last.text) ||
+              last.text.includes(text) ||
+              text.length >= last.text.length;
 
             if (newerLooksLikeUpdate) {
               return [...prev.slice(0, -1), { ...last, text, ts: now() }];
             }
           }
 
-          return [
-            ...prev,
-            { id: `${now()}-${Math.random()}`, speaker: inferredSpeaker, text, ts: now() },
-          ];
+          return [...prev, { id: `${now()}-${Math.random()}`, speaker: inferredSpeaker, text, ts: now() }];
         });
       } catch {
         // ignore
       }
     });
+
     return () => {
       stopPolling();
       try {
@@ -241,6 +224,7 @@ export default function VoiceDemo() {
 
     startLockRef.current = true;
 
+    setError(null);
     setSegments([]);
     resetPostCall();
     setCallId(null);
@@ -253,14 +237,13 @@ export default function VoiceDemo() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ agent_id: selectedAgentId }),
       });
+
       const { access_token, call_id } = await resp.json();
 
       callIdRef.current = call_id;
       setCallId(call_id);
 
-      await clientRef.current?.startCall({
-        accessToken: access_token,
-      });
+      await clientRef.current?.startCall({ accessToken: access_token });
     } catch (e: any) {
       setError(e?.message ?? "Error");
       setStatus("idle");
@@ -278,11 +261,8 @@ export default function VoiceDemo() {
   }
 
   const handleStartOrStop = async () => {
-    if (status === "in_call") {
-      await stop();
-    } else {
-      await start();
-    }
+    if (status === "in_call") await stop();
+    else await start();
   };
 
   const statusLabel = useMemo(() => {
@@ -297,6 +277,7 @@ export default function VoiceDemo() {
       <div className="cardHeader">
         <div className="titleBlock">
           <h2>Voz (Web Call)</h2>
+
           <div className="meta">
             <span className="pill">Estado: {statusLabel}</span>
             <span className="pill">call_id: {callId ?? "—"}</span>
@@ -304,30 +285,29 @@ export default function VoiceDemo() {
           </div>
         </div>
 
-        <div style={{ marginTop: 10, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <span className="pill">Agente</span>
+        {/* ✅ agrupar selector + botón para que en mobile sean 2 filas prolijas */}
+        <div className="headerActions">
+          <div className="toolbar">
+            <span className="pill">Agente</span>
 
-          <select
-            value={selectedAgentId}
-            onChange={(e) => setSelectedAgentId(e.target.value)}
-            className="agentSelect"
-            disabled={status !== "idle"}
-          >
-            {agents.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.label}
-              </option>
-            ))}
-          </select>
+            <select
+              value={selectedAgentId}
+              onChange={(e) => setSelectedAgentId(e.target.value)}
+              className="agentSelect"
+              disabled={status !== "idle"}
+            >
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <button className="btn primary" onClick={handleStartOrStop} disabled={status === "starting"}>
+            {status === "in_call" ? "Finalizar" : "Iniciar voz"}
+          </button>
         </div>
-
-        <button
-          className="btn primary"
-          onClick={handleStartOrStop}
-          disabled={status === "starting"}
-        >
-          {status === "in_call" ? "Finalizar" : "Iniciar voz"}
-        </button>
       </div>
 
       <div className="grid">
@@ -365,9 +345,7 @@ export default function VoiceDemo() {
 
             <div className="metric">
               <div className="k">Call Successful</div>
-              <div className="v">
-                {successful === null ? "—" : successful ? "Sí" : "No"}
-              </div>
+              <div className="v">{successful === null ? "—" : successful ? "Sí" : "No"}</div>
             </div>
 
             <div className="metric">
@@ -393,7 +371,7 @@ export default function VoiceDemo() {
                 Object.entries(customFields).map(([k, v]) => (
                   <tr key={k}>
                     <td>{k}</td>
-                    <td>{String(v)}</td>
+                    <td style={{ whiteSpace: "pre-wrap" }}>{String(v)}</td>
                   </tr>
                 ))
               ) : (
@@ -406,11 +384,7 @@ export default function VoiceDemo() {
         </div>
       </div>
 
-      {error && (
-        <div style={{ marginTop: 10, color: "red" }}>
-          {error}
-        </div>
-      )}
+      {error && <div className="errorBanner">{error}</div>}
     </section>
   );
 }

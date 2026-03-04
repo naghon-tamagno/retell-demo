@@ -1,3 +1,5 @@
+/* app/globals.css (o el CSS global que estés usando) */
+
 :root {
   --bg: #f7f7f8;
   --panel: #ffffff;
@@ -66,8 +68,13 @@ body {
 .cardHeader {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 16px;
   margin-bottom: 18px;
+}
+
+.titleBlock {
+  min-width: 0;
 }
 
 .titleBlock h2 {
@@ -79,6 +86,16 @@ body {
   display: flex;
   gap: 10px;
   margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+/* ✅ acciones a la derecha (selector + botón) */
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 /* Pills */
@@ -98,21 +115,22 @@ body {
   background: var(--accent);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 10px 18px;
   font-size: 14px;
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .btn.primary:hover {
-  opacity: 0.9;
+  opacity: 0.92;
 }
 
 /* Grid */
 
 .grid {
   display: grid;
-  grid-template-columns: 1fr 380px;
+  grid-template-columns: 1.2fr 0.8fr;
   gap: 18px;
 }
 
@@ -124,6 +142,7 @@ body {
   border-radius: 12px;
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .panelHeader {
@@ -152,14 +171,16 @@ body {
 .roleTag {
   font-size: 12px;
   color: var(--muted);
-  width: 40px;
+  width: 56px;
+  flex: 0 0 auto;
 }
 
 .bubble {
   background: #f4f4f5;
   padding: 8px 12px;
-  border-radius: 8px;
+  border-radius: 10px;
   max-width: 80%;
+  word-break: break-word;
 }
 
 /* Metrics */
@@ -211,6 +232,7 @@ body {
   width: 100%;
   border-top: 1px solid var(--border);
   font-size: 13px;
+  border-collapse: collapse;
 }
 
 .table th {
@@ -222,33 +244,17 @@ body {
 
 .table td {
   padding: 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
 }
 
-/* Agent selector */
+/* Toolbar + Agent selector */
 
-select.pill {
-  background: #ffffff;
-  color: #202123;
-  border: 1px solid #e5e5e7;
-  padding: 6px 10px;
-  border-radius: 8px;
-  font-size: 13px;
-}
-
-select.pill option {
-  color: #202123;
-  background: #ffffff;
-}
-
-select.pill {
-  appearance: none;
-  background: #f7f7f8;
-  color: #202123;
-  border: 1px solid #e5e5e7;
-  padding: 6px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  cursor: pointer;
+.toolbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
 }
 
 .agentSelect {
@@ -266,4 +272,69 @@ select.pill {
 .agentSelect option {
   background: #ffffff;
   color: #202123;
+}
+
+/* Error banner */
+
+.errorBanner {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: #fff2f2;
+  border: 1px solid #ffd6d6;
+  color: #b42318;
+  border-radius: 10px;
+  font-size: 13px;
+}
+
+/* 👇 Mobile */
+
+@media (max-width: 640px) {
+  .container {
+    padding: 18px;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .cardHeader {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .headerActions {
+    width: 100%;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .toolbar {
+    width: 100%;
+    align-items: stretch;
+  }
+
+  .toolbar .pill {
+    width: fit-content;
+  }
+
+  .agentSelect {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .btn.primary {
+    width: 100%;
+    padding: 12px 16px;
+  }
+
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .scroll {
+    height: 340px;
+  }
 }
