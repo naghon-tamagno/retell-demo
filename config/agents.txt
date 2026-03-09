@@ -1,2 +1,3 @@
 # Formato: agent_id | descripción
-agent_3767802f6752e71491440b515b | Multi-State Agent (Sector Electrico)
+agent_a753188f2eff19451228c27bf4 | MS Agent Sector Electrico
+agent_0831722161fd93d40b29faa2f3 | MS Agent Sector Medicina
